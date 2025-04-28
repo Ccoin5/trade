@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>App Gm - Connect to Somnia Testnet</title>
+<style>
+  body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 20px;
+    background-color: #f4f4f4;
+  }
+
+  button {
+    background-color: #28a745; /* Green for connect */
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+  }
+
+  button:hover {
+    background-color: #1e7e34;
+  }
+
+  button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+
+  #disconnectBtn {
+    background-color: #dc3545; /* Red for disconnect */
+  }
+
+  #disconnectBtn:hover {
+    background-color: #c82333;
+  }
+
+  #disconnectBtn {
+    display: none; /* Initially hidden */
+    margin-left: 10px;
+  }
+
+  #walletStatus {
+    font-size: 14px;
+    color: #555;
+    text-align: center;
+  }
+</style>
+<script>
+let currentProvider = null;
+let connectedAccount = null;
+
+async function connectWallet() {
+  if (window.ethereum) {
+    currentProvider = window.ethereum;
+    try {
+      const accounts = await currentProvider.request({ method: 'eth_requestAccounts' });
+      console.log('Wallet connected');
+      connectedAccount = accounts[0];
+      console.log('Connected account:', connectedAccount);
+      document.getElementById('connectBtn').style.display = 'none';
+      document.getElementById('disconnectBtn').style.display = 'inline-block';
+      document.getElementById('walletStatus').innerText = `Connected: ${getShortenedAddress(connectedAccount)}. Attempting to switch to Somnia...`;
+      await switchOrAddNetwork();
+    } catch (error) {
+      console.error('Connection error:', error);
+      document.getElementById('walletStatus').innerText = 'Connection failed.';
+    }
+  } else {
+    alert('No Web3 wallet found. Please install MetaMask or Rabby.');
+    document.getElementById('walletStatus').innerText = 'No wallet found.';
+  }
+}
+
+async function disconnectWallet() {
+  if (currentProvider && currentProvider.disconnect) {
+    try {
+      await currentProvider.disconnect(); // Some wallets might support this
+      console.log('Wallet disconnected');
+    } catch (error) {
+      console.log('Disconnect method not supported or failed:', error);
+      // Fallback: Reset state in the UI
+    }
+  }
+  currentProvider = null;
+  connectedAccount = null;
+  document.getElementById('connectBtn').style.display = 'inline-block';
+  document.getElementById('disconnectBtn').style.display = 'none';
+  document.getElementById('walletStatus').innerText = 'Not connected.';
+}
+
+async function switchOrAddNetwork() {
+  if (currentProvider) {
+    try {
+      await currentProvider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0xc488' }], // Somnia Testnet chain ID
+      });
+      console.log('Successfully switched to Somnia Testnet');
+      document.getElementById('walletStatus').innerText = `Connected to Somnia Testnet: ${getShortenedAddress(connectedAccount)}`;
+    } catch (switchError) {
+      // This error code indicates that the chain has not been added to the wallet.
+      if (switchError.code === 4902) {
+        try {
+          await currentProvider.request({
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: '0xc488',
+                chainName: 'Somnia Testnet',
+                rpcUrls: ['https://rpc.testnet.somnia.network'],
+                nativeCurrency: {
+                  name: 'Somia Testnet Token',
+                  symbol: 'STT',
+                  decimals: 18,
+                },
+                blockExplorerUrls: ['https://explorer.testnet.somnia.network/'],
+              },
+            ],
+          });
+          console.log('Somnia Testnet added successfully');
+          // Optionally, switch again after adding (shouldn't be strictly necessary in most cases)
+          await currentProvider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0xc488' }],
+          });
+          console.log('Switched to Somnia Testnet after adding');
+          document.getElementById('walletStatus').innerText = `Connected to Somnia Testnet: ${getShortenedAddress(connectedAccount)}`;
+        } catch (addError) {
+          console.error('Failed to add Somnia Testnet', addError);
+          document.getElementById('walletStatus').innerText = 'Failed to add Somnia Testnet. Please check your wallet.';
+        }
+      } else {
+        console.error('Failed to switch to Somnia Testnet', switchError);
+        document.getElementById('walletStatus').innerText = 'Failed to switch network. Please check your wallet.';
+      }
+    }
+  }
+}
+
+function getShortenedAddress(address) {
+  if (!address) return '';
+  return `${address.substring(0, 6)}...${address.slice(-4)}`;
+}
+</script>
+</head>
+<body>
+
+  <h1>Connect to Somnia Testnet</h1>
+
+  <div>
+    <button id="connectBtn" onclick="connectWallet()">App Gm - Use MetaMask or Rabby Wallet</button>
+    <button id="disconnectBtn" onclick="disconnectWallet()">Disconnect Wallet</button>
+  </div>
+
+  <div id="walletStatus">Not connected.</div>
+
+</body>
+</html>
